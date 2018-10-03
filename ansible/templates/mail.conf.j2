@@ -1,0 +1,12 @@
+<VirtualHost *:80>
+    Servername mail.todo.lokal
+
+    ProxyPreserveHost On
+    ProxyRequests Off
+
+    ProxyPass "/api/v2/websocket" ws://localhost:{{ mailhog_web_port}}/api/v2/websocket
+    ProxyPassReverse "/api/v2/websocket" ws://localhost:{{ mailhog_web_port}}/api/v2/websocket
+
+    ProxyPass / http://localhost:{{ mailhog_web_port}}/
+    ProxyPassReverse / http://localhost:{{ mailhog_web_port}}/
+</VirtualHost>

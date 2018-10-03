@@ -1,0 +1,191 @@
+---
+- hosts: all
+  become: true
+  become_method: sudo
+
+  vars:
+    percona_mysql_version: '5.7'
+    percona_mysql_root_password: vagrant
+    document_root: /var/www/html
+    php_timezone: Europe/Berlin
+    ss_admin_email: info@todo.lokal
+    ss_admin: Admin
+    ss_passwd: p
+    php_ini_settings:
+    - key: post_max_size
+      value: 512M
+    - key: upload_max_filesize
+      value: 512M
+    - key: max_execution_time
+      value: 600
+    - key: max_input_time
+      value: 600
+    php_additional_packages:
+    - php7.1-gd
+    - php7.1-mysql
+    - php7.1-curl
+    - php7.1-mcrypt
+    - php7.1-mbstring
+    - php7.1-xml
+    - php7.1-tidy
+    - php7.1-zip
+    - php-imagick
+    - php-geoip
+    - geoip-bin
+    - php-xdebug
+    docker_users:
+    - ubuntu
+    mailhog_smtp_port: 25
+
+  pre_tasks:
+  - name: check for file custom_vars.yml
+    stat:
+      path: custom_vars.yml
+    register: stat_custom_vars
+  - name: load custom vars, if existent
+    include_vars:
+      file: custom_vars.yml
+    when: stat_custom_vars.stat.exists
+
+  roles:
+  - andrelohmann.root_colored_prompt
+  - andrelohmann.sury_php
+  - andrelohmann.percona_mysql
+  - andrelohmann.apache_php
+  - andrelohmann.mailhog
+
+  tasks:
+  - name: debconf for phpmyadmin
+    debconf:
+      name: phpmyadmin
+      question: "{{ item.question }}"
+      value: "{{ item.value }}"
+      vtype: "{{ item.vtype }}"
+    with_items:
+    - question: 'phpmyadmin/dbconfig-install'
+      value: 'true'
+      vtype: 'boolean'
+    - question: 'phpmyadmin/app-password-confirm'
+      value: '{{percona_mysql_root_password}}'
+      vtype: 'password'
+    - question: 'phpmyadmin/mysql/admin-pass'
+      value: '{{percona_mysql_root_password}}'
+      vtype: 'password'
+    - question: 'phpmyadmin/mysql/app-pass'
+      value: '{{percona_mysql_root_password}}'
+      vtype: 'password'
+    - question: 'phpmyadmin/reconfigure-webserver'
+      value: 'apache2'
+      vtype: 'multiselect'
+
+  - name: install required packages
+    apt:
+      pkg: "{{ item }}"
+      state: latest
+      allow_unauthenticated: yes
+      autoclean: yes
+      autoremove: yes
+    with_items:
+    - git
+    - htop
+    - phpmyadmin
+
+  - name: start percona server
+    service:
+      name: mysql
+      state: started
+
+  - name: Update default vhost
+    template:
+      src: 000-default.conf.j2
+      dest: /etc/apache2/sites-available/000-default.conf
+
+  - name: add mail vhost
+    template:
+      src: mail.conf.j2
+      dest: /etc/apache2/sites-available/mail.conf
+
+  - name: add _ss_environment.php
+    template:
+      src: _ss_environment.php.j2
+      dest: /var/www/html/_ss_environment.php
+
+  - name: add .htaccess
+    template:
+      src: htaccess.j2
+      dest: /var/www/html/.htaccess
+
+  - name: remove index.html
+    file:
+      path: /var/www/html/index.html
+      state: absent
+
+  - name: enable rewrite module
+    apache2_module:
+      state: present
+      name: rewrite
+
+  - name: enable proxy module
+    apache2_module:
+      state: present
+      name: proxy
+
+  - name: enable proxy_balancer module
+    apache2_module:
+      state: present
+      name: proxy_balancer
+
+  - name: enable proxy_http module
+    apache2_module:
+      state: present
+      name: proxy_http
+
+  - name: enable proxy_http module
+    apache2_module:
+      state: present
+      name: proxy_wstunnel
+
+  - name: a2ensite mail
+    command: a2ensite mail.conf
+
+  - name: restart apache
+    service:
+      name: apache2
+      state: restarted
+
+  - name: Install Composer
+    get_url:
+      url: https://getcomposer.org/composer.phar
+      dest: /usr/local/bin/composer
+      mode: 0755
+      validate_certs: no
+
+  - name: Tidy up the system
+    shell: apt-get clean -y; apt-get autoremove -y;
+
+  # if not filepermissions are ignored, than git inside vm will always commit all files because of their changed permissions
+  - name: make git ignore the filepermissions change
+    shell: cd /var/www/html/; git config core.filemode false;
+
+  - name: remove cache directory
+    file:
+      path: /var/www/html/silverstripe-cache
+      state: absent
+
+  - name: Create silverstripe-cache directory
+    file:
+      state: directory
+      path: /var/www/html/silverstripe-cache
+      owner: www-data
+      group: www-data
+      mode: 0755
+
+  - name: composer install
+    composer:
+      command: update
+      working_dir: /var/www/html
+      no_dev: False
+    become: False
+
+  - name: install the application
+    shell: cd /var/www/html/; php framework/cli-script.php dev/build flush=1;

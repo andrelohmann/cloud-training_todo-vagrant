@@ -1,0 +1,17 @@
+---
+- src: https://github.com/andrelohmann/ansible-role-root_colored_prompt
+  version: 1.0.0
+  name: andrelohmann.root_colored_prompt
+- src: https://github.com/andrelohmann/ansible-role-percona_mysql
+  version: 1.0.4
+  name: andrelohmann.percona_mysql
+- src: https://github.com/andrelohmann/ansible-role-sury_php
+  version: 1.0.4
+  name: andrelohmann.sury_php
+- src: https://github.com/andrelohmann/ansible-role-apache_php
+  version: 1.1.3
+  name: andrelohmann.apache_php
+- src: https://github.com/andrelohmann/ansible-role-mailhog
+  version: 1.0.4
+  name: andrelohmann.mailhog
+...
