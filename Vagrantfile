@@ -51,7 +51,7 @@ Vagrant.configure(2) do |config|
   config.hostmanager.include_offline = true
   config.vm.network "private_network", ip: "192.168.211.10"
   config.vm.hostname = "todo.lokal"
-  config.hostmanager.aliases = %w(www.todo.lokal mail.timemachine.lokal)
+  config.hostmanager.aliases = %w(www.todo.lokal mail.todo.lokal)
 
   # Create a private network, which allows host-only access to the machine
   # using a specific IP.
